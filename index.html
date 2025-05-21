@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Garanti BBVA - Tilt Test (v2 - Öne Eğim)</title>
+    <style>
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
+            font-family: Arial, sans-serif; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+            background-color: #333; display: flex; justify-content: center; align-items: center;
+        }
+        #ad-container {
+            width: 320px; height: 480px; position: relative; overflow: hidden;
+            background-color: #f0f0f0; cursor: default; border: 1px solid #ccc; box-shadow: 0 0 10px rgba(0,0,0,0.5);
+        }
+        .screen {
+            width: 100%; height: 100%; position: absolute; top: 0; left: 0; display: none; opacity: 0;
+            transition: opacity 0.5s ease-in-out; flex-direction: column; justify-content: center;
+            align-items: center; text-align: center; box-sizing: border-box; padding: 20px;
+        }
+        .screen.active { display: flex; opacity: 1; }
+        .background-image {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1;
+        }
+        .content {
+            position: relative; z-index: 2; color: #fff; background-color: rgba(0, 0, 0, 0.5);
+            padding: 15px; border-radius: 8px;
+        }
+        #start-screen .content h2 { font-size: 22px; margin-bottom: 15px; }
+        #permission-overlay {
+            position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-color: rgba(0,0,0,0.85);
+            z-index: 100; display: flex; flex-direction: column; justify-content: center;
+            align-items: center; color: white; text-align: center; padding: 20px;
+        }
+        #permission-overlay p { margin-bottom: 20px; font-size: 16px; }
+        #permission-button {
+            padding: 12px 25px; font-size: 18px; background-color: #ff6000; color: white;
+            border: none; border-radius: 5px; cursor: pointer;
+        }
+        .tilt-animation { position: relative; width: 100px; height: 60px; margin: 10px auto; }
+        .phone-icon {
+            width: 40px; height: 40px; position: absolute; top: 50%; left: 50%;
+            transform: translate(-50%, -50%); fill: white;
+            /* Animasyonu öne eğime uygun hale getirelim (isteğe bağlı) */
+            animation: tiltPhoneForward 2s infinite ease-in-out;
+        }
+        .arrow-icon {
+            width: 24px; height: 24px; position: absolute; left: 50%;
+            transform: translateX(-50%); opacity: 0; fill: white;
+        }
+        .arrow-icon.up { /* Yukarı ok */
+            top: 0; animation: tiltArrowUp 2s infinite ease-in-out; animation-delay: 0.2s;
+            transform: translateX(-50%) rotate(-90deg);
+        }
+        .arrow-icon.down { /* Aşağı ok - veya tek ok animasyonla yön değiştirir */
+            bottom: 0; animation: tiltArrowDown 2s infinite ease-in-out; animation-delay: 0.2s;
+            transform: translateX(-50%) rotate(90deg);
+        }
+
+        @keyframes tiltPhoneForward { /* Öne/arkaya eğim animasyonu */
+            0%, 100% { transform: translate(-50%, -50%) perspective(100px) rotateX(0deg); }
+            25% { transform: translate(-50%, -50%) perspective(100px) rotateX(-15deg); }
+            75% { transform: translate(-50%, -50%) perspective(100px) rotateX(15deg); }
+        }
+        @keyframes tiltArrowUp {
+            0%, 20%, 80%, 100% { opacity: 0; transform: translateX(-50%) rotate(-90deg) translateY(5px); }
+            40%, 60% { opacity: 1; transform: translateX(-50%) rotate(-90deg) translateY(0px); }
+        }
+         @keyframes tiltArrowDown { /* Örneğin ikinci bir ok aşağıyı gösterebilir veya aynı ok yönü değişir */
+            0%, 20%, 80%, 100% { opacity: 0; transform: translateX(-50%) rotate(90deg) translateY(5px); }
+            40%, 60% { opacity: 1; transform: translateX(-50%) rotate(90deg) translateY(0px); }
+        }
+
+
+        #tilt-interaction-screen .content-image {
+            max-width: 70%; max-height: 150px; margin-bottom: 10px; border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2); animation: fadeInScaleUp 0.5s ease-out;
+        }
+        @keyframes fadeInScaleUp { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
+        #tilt-interaction-screen .tilt-content h3 { font-size: 18px; margin-top: 0; margin-bottom: 5px; }
+        #tilt-interaction-screen .tilt-content p { font-size: 14px; margin: 0; }
+        #success-screen .content h2 { font-size: 24px; margin-bottom: 20px; }
+        #cta-button {
+            padding: 10px 20px; font-size: 15px; color: #fff; background-color: #ff6000;
+            border: none; border-radius: 25px; cursor: pointer; transition: background-color 0.3s ease;
+        }
+        #cta-button:hover { background-color: #e05000; }
+        #debug-info { /* Debugging için */
+            position: fixed; bottom: 5px; left: 5px; background: rgba(0,0,0,0.7); color: white;
+            padding: 5px; font-size: 10px; z-index: 200; border-radius:3px; display: none; /* Başlangıçta gizli */
+        }
+    </style>
+</head>
+<body>
+    <div id="ad-container">
+        <div id="start-screen" class="screen active">
+            <img src="https://via.placeholder.com/320x480/6FA8DC/FFFFFF?Text=tilt-start.jpg" alt="Arka Plan" class="background-image">
+            <div class="content">
+                <h2 data-config-start-title>Telefonu Öne Eğerek Öde</h2>
+                <div class="tilt-animation">
+                    <svg class="phone-icon" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M15.5 1h-8A2.5 2.5 0 0 0 5 3.5v17A2.5 2.5 0 0 0 7.5 23h8a2.5 2.5 0 0 0 2.5-2.5v-17A2.5 2.5 0 0 0 15.5 1zm-4 21c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zm4.5-4H7V4h9v14z"/></svg>
+                    <!-- Öne eğim için okları değiştirelim -->
+                    <svg class="arrow-icon up" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M15.41 16.59L10.83 12l4.58-4.59L14 6l-6 6 6 6 1.41-1.59z"/></svg>
+                </div>
+                 <p style="font-size:12px; margin-top: 10px;">(Sensörler için izin gerekebilir)</p>
+            </div>
+        </div>
+        <div id="tilt-interaction-screen" class="screen">
+            <img id="tilt-image" src="" alt="Ödeme Yöntemi" class="content-image">
+            <div class="content tilt-content">
+                <h3 id="tilt-title"></h3>
+                <p id="tilt-description"></p>
+            </div>
+        </div>
+        <div id="success-screen" class="screen">
+            <img src="https://via.placeholder.com/320x480/4CAF50/FFFFFF?Text=payment-success.jpg" alt="Ödeme Başarılı" class="background-image">
+            <div class="content">
+                <h2 data-config-success-title>Ödeme Alındı!</h2>
+                <button id="cta-button" data-config-cta-text>Uygulamayı Keşfet</button>
+            </div>
+        </div>
+        <div id="permission-overlay" style="display: none;">
+            <p>Etkileşimli deneyim için lütfen cihaz hareket sensörlerine erişim izni verin.</p>
+            <button id="permission-button">Sensörleri Etkinleştir</button>
+        </div>
+    </div>
+    <div id="debug-info">Debug: Info</div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', function () {
+        console.log("DOM Content Loaded. Sayfa HTTPS üzerinden mi sunuluyor kontrol edin.");
+
+        if (typeof mraid === 'undefined') {
+            window.mraid = {
+                getState: () => 'default', isViewable: () => true,
+                addEventListener: (e,c) => { if(e==='ready')c(); console.log('MRAID mock:',e);},
+                removeEventListener: (e,c) => console.log('MRAID mock:',e),
+                open: url => { console.log('MRAID mock: open',url); alert('MRAID: open ' + url); },
+                close: () => { console.log('MRAID mock: close'); alert('Reklam Kapatıldı'); document.getElementById('ad-container').style.display='none';},
+                useCustomClose: u => console.log('MRAID mock: useCustomClose', u),
+            };
+            console.log("Lokal test MRAID objesi oluşturuldu.");
+        }
+
+        const config = {
+            tiltCooldown: 1200, // ms
+            tiltSteps: [ // Daha hassas triggerAngle değerleri
+                { id: 1, image: 'https://via.placeholder.com/320x150/FFC107/000000?Text=Garanti+Pay', title: 'Garanti Pay', description: 'Tek tıkla anında ödeme!', triggerAngle: 8 }, // derece
+                { id: 2, image: 'https://via.placeholder.com/320x150/9C27B0/FFFFFF?Text=QR+ile+Ode', title: 'QR ile Öde', description: 'Karekodu okut, öde!', triggerAngle: 16 },
+                { id: 3, image: 'https://via.placeholder.com/320x150/009688/FFFFFF?Text=NFC+ile+Ode', title: 'NFC ile Temassız', description: 'Telefonu yaklaştır, öde.', triggerAngle: 24 }
+            ],
+            successScreen: { ctaLink: "https://www.garantibbva.com.tr/mobil" }
+        };
+
+        const adContainer = document.getElementById('ad-container');
+        const screens = {
+            start: document.getElementById('start-screen'),
+            interaction: document.getElementById('tilt-interaction-screen'),
+            success: document.getElementById('success-screen')
+        };
+        const ui = {
+            tiltImage: document.getElementById('tilt-image'),
+            tiltTitle: document.getElementById('tilt-title'),
+            tiltDescription: document.getElementById('tilt-description'),
+            ctaButton: document.getElementById('cta-button'),
+            permissionOverlay: document.getElementById('permission-overlay'),
+            permissionButton: document.getElementById('permission-button'),
+            debugInfo: document.getElementById('debug-info') // Debug
+        };
+
+        let currentTiltStep = 0;
+        let isTiltActive = false;
+        let canDetectTilt = true;
+        let initialBeta = null; // ÖNE/ARKAYA eğim için BETA kullanılacak
+
+        function updateDebugInfo(text) {
+            // ui.debugInfo.style.display = 'block'; // Gerekirse görünür yap
+            // ui.debugInfo.textContent = text;
+            console.log("DEBUG:", text);
+        }
+
+        function showScreen(screenName) {
+            Object.values(screens).forEach(s => s.classList.remove('active'));
+            if (screens[screenName]) screens[screenName].classList.add('active');
+            else console.error("Ekran bulunamadı:", screenName);
+        }
+
+        function loadInitialContent() { /* Basitlik için şimdilik placeholderlar kalıyor */ }
+
+        function updateTiltInteractionScreen(stepData) {
+            ui.tiltImage.src = stepData.image;
+            ui.tiltTitle.textContent = stepData.title;
+            ui.tiltDescription.textContent = stepData.description;
+            ui.tiltImage.classList.remove('fadeInScaleUp');
+            void ui.tiltImage.offsetWidth;
+            ui.tiltImage.classList.add('fadeInScaleUp');
+        }
+
+        function handleDeviceOrientation(event) {
+            if (!isTiltActive || !canDetectTilt || currentTiltStep >= config.tiltSteps.length) {
+                return;
+            }
+
+            const beta = event.beta; // Ön-arka eğim (-180 to 180)
+            // const gamma = event.gamma; // Yanlara eğim (-90 to 90) - Kullanılmıyor
+            // const alpha = event.alpha; // Pusula yönü (0-360) - Kullanılmıyor
+
+            if (beta === null) {
+                updateDebugInfo("Beta (ön/arka eğim) verisi alınamıyor.");
+                return;
+            }
+            
+            updateDebugInfo(`Raw Beta: ${beta.toFixed(1)}`);
+
+
+            if (initialBeta === null) {
+                // Telefonun ilk pozisyonunu biraz daha kararlı hale getirmek için bir kaç saniye bekleyebiliriz
+                // Veya kullanıcı "başla" gibi bir butona bastığında o anki pozisyonu alırız.
+                // Şimdilik ilk okumayı alıyoruz:
+                initialBeta = beta;
+                updateDebugInfo(`Initial Beta set: ${initialBeta.toFixed(1)}`);
+                return;
+            }
+
+            // Telefonun "düz" (ekran yukarı bakıyor) olduğu varsayımıyla,
+            // öne eğildiğinde beta değeri artar (pozitife doğru,örn: 0'dan 30'a),
+            // arkaya eğildiğinde beta değeri azalır (negatife doğru, örn: 0'dan -30'a).
+            // Biz genellikle "öne eğme" etkileşimi istiyoruz.
+            // Pozitif eğim: (beta - initialBeta)
+            // Eğer initialBeta çok değişkenlik gösteriyorsa, mutlak değerler de kullanılabilir,
+            // ama yönü belirlemek için fark daha iyi.
+
+            // Telefonu kullanıcıya doğru (öne) eğdiğimizde Beta'nın arttığını varsayıyoruz.
+            // Bu, telefonun ilk tutuş pozisyonuna göre değişebilir. Test önemli.
+            // En basit haliyle, başlangıca göre ne kadar "öne" eğildi.
+            const deltaBeta = beta - initialBeta;
+            // const absDeltaBeta = Math.abs(beta - initialBeta); // Yönden bağımsız toplam eğim
+
+            updateDebugInfo(`Current Beta: ${beta.toFixed(1)}, Initial Beta: ${initialBeta.toFixed(1)}, Delta Beta: ${deltaBeta.toFixed(1)}`);
+
+
+            const currentStepConfig = config.tiltSteps[currentTiltStep];
+            
+            // Burada, deltaBeta'nın pozitif (öne doğru) olmasını bekliyoruz.
+            // Eğer arkaya eğerek de tetiklenmesi isteniyorsa Math.abs(deltaBeta) kullanılır.
+            // Şu an için sadece ÖNE EĞİM.
+            if (deltaBeta >= currentStepConfig.triggerAngle) {
+                updateDebugInfo(`Tilt step ${currentTiltStep + 1} triggered! Angle: ${deltaBeta.toFixed(1)} >= ${currentStepConfig.triggerAngle}`);
+                
+                canDetectTilt = false;
+                
+                if (currentTiltStep === 0) { // İlk eğim
+                    showScreen('interaction');
+                }
+                updateTiltInteractionScreen(currentStepConfig);
+                currentTiltStep++;
+
+                if (currentTiltStep >= config.tiltSteps.length) { // Tüm adımlar tamamlandı
+                    setTimeout(() => {
+                        showScreen('success');
+                        isTiltActive = false;
+                        window.removeEventListener('deviceorientation', handleDeviceOrientation);
+                        updateDebugInfo("All steps complete. Tilt listener removed.");
+                    }, config.tiltCooldown / 2);
+                } else { // Sonraki adım için cooldown
+                    setTimeout(() => {
+                        canDetectTilt = true;
+                        // initialBeta = beta; // İsteğe bağlı: Her adımda referansı sıfırla (her eğim bir öncekinden bağımsız olur)
+                        updateDebugInfo("Cooldown finished. Ready for next tilt.");
+                    }, config.tiltCooldown);
+                }
+            }
+        }
+
+        function requestAndStartMotionTracking() {
+            updateDebugInfo("Motion tracking request started.");
+            ui.permissionOverlay.style.display = 'none';
+
+            if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+                // iOS 13+
+                updateDebugInfo("iOS 13+ detected. Requesting permission...");
+                DeviceOrientationEvent.requestPermission()
+                    .then(permissionState => {
+                        updateDebugInfo(`Permission state: ${permissionState}`);
+                        if (permissionState === 'granted') {
+                            window.addEventListener('deviceorientation', handleDeviceOrientation, false);
+                            isTiltActive = true;
+                            updateDebugInfo("Sensor permission GRANTED. Listening for orientation.");
+                        } else {
+                            updateDebugInfo("Sensor permission DENIED by user.");
+                            alert("Hareket sensörü izni verilmedi. Bu özellik çalışmayacaktır.");
+                        }
+                    })
+                    .catch(error => {
+                        console.error("Error requesting sensor permission:", error);
+                        updateDebugInfo(`Error requesting permission: ${error.message}`);
+                        alert("Sensör izni alınırken bir hata oluştu: " + error.message);
+                    });
+            } else if (window.DeviceOrientationEvent) {
+                // Diğer (Android, eski iOS)
+                updateDebugInfo("Non-iOS 13+ or Android. Adding listener directly.");
+                window.addEventListener('deviceorientation', handleDeviceOrientation, false);
+                isTiltActive = true;
+                updateDebugInfo("Listening for device orientation.");
+            } else {
+                updateDebugInfo("DeviceOrientationEvent NOT SUPPORTED by this browser/device.");
+                alert("Cihazınız veya tarayıcınız hareket sensörlerini desteklemiyor.");
+            }
+        }
+
+        function initAd() {
+            updateDebugInfo("initAd function called.");
+            loadInitialContent();
+            showScreen('start');
+
+            // İzin butonu her zaman gösterilebilir veya platforma göre şartlı
+            // En güvenlisi, önce izin isteyip sonra başlatmak
+            if (typeof DeviceOrientationEvent !== 'undefined' && 
+                (typeof DeviceOrientationEvent.requestPermission === 'function' || window.DeviceOrientationEvent) ) {
+                 ui.permissionOverlay.style.display = 'flex';
+            } else {
+                 updateDebugInfo("Sensörler için destek bulunamadı. Overlay gösterilmeyecek.");
+                 alert("Cihazınızda hareket sensörleri bulunamadı veya tarayıcınız desteklemiyor.");
+            }
+           
+
+            ui.ctaButton.addEventListener('click', () => mraid.open(config.successScreen.ctaLink));
+        }
+        
+        ui.permissionButton.addEventListener('click', requestAndStartMotionTracking);
+
+        if (mraid.getState() === 'loading') {
+            mraid.addEventListener('ready', initAd);
+        } else {
+            initAd();
+        }
+    });
+    </script>
+</body>
+</html>
